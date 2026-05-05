@@ -134,8 +134,19 @@
       dl { margin: 0; display: grid; gap: 8px; }
       dt { color: var(--muted); font-size: 12px; font-weight: 800; }
       dd { margin: 2px 0 0; overflow-wrap: anywhere; }
+      .muted { color: var(--muted); }
+      .knowledge { display: grid; gap: 8px; }
+      .knowledge-row { display: grid; gap: 4px; }
+      .knowledge-label {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+      }
       .chips { display: flex; flex-wrap: wrap; gap: 6px; }
       .chip { border-radius: 99px; padding: 3px 8px; background: #eef1f4; font-size: 12px; }
+      .chip.known { background: #e7f6ec; color: #166534; }
+      .chip.partial { background: #fff4d6; color: #8a4b00; }
+      .chip.unknown { background: #ffe7e2; color: #b42318; }
       .gap, .question, .msg {
         border: 1px solid var(--line);
         border-radius: 8px;
@@ -661,13 +672,13 @@
                 <div><dt>Profile</dt><dd>${escapeHtml(profile.profile_id || "")}</dd></div>
                 <div><dt>Background</dt><dd>${escapeHtml(profile.education_background || "")}</dd></div>
                 <div><dt>Purpose</dt><dd>${escapeHtml(profile.learning_purpose || "")}</dd></div>
-                <div><dt>Beliefs</dt><dd>${escapeHtml(profile.beliefs || "")}</dd></div>
+                <div><dt>Beliefs</dt><dd>${profile.beliefs ? escapeHtml(profile.beliefs) : '<span class="muted">None provided</span>'}</dd></div>
               </dl>
               <dl>
                 <div><dt>Task</dt><dd>${escapeHtml(task.title || "")}</dd></div>
                 <div><dt>Description</dt><dd>${escapeHtml(task.description || "")}</dd></div>
                 <div><dt>Success criteria</dt><dd>${escapeHtml(task.success_criteria || "")}</dd></div>
-                <div><dt>Known / Partial / Unknown</dt><dd>${chips(asList(profile.known_well))}${chips(asList(profile.partially_known))}${chips(asList(profile.unknown))}</dd></div>
+                <div><dt>Knowledge State</dt><dd>${knowledgeState(profile)}</dd></div>
               </dl>
             </div>
           </section>
@@ -680,6 +691,21 @@
       function chips(values) {
         if (!values.length) return '<span class="status">None</span>';
         return `<div class="chips">${values.map((value) => `<span class="chip">${escapeHtml(value)}</span>`).join("")}</div>`;
+      }
+      function labeledChips(label, className, values) {
+        const items = asList(values);
+        return `<div class="knowledge-row"><span class="knowledge-label">${label}</span>${
+          items.length
+            ? `<div class="chips">${items.map((value) => `<span class="chip ${className}">${escapeHtml(value)}</span>`).join("")}</div>`
+            : '<span class="status">None</span>'
+        }</div>`;
+      }
+      function knowledgeState(profile) {
+        return `<div class="knowledge">
+          ${labeledChips("Known", "known", profile.known_well)}
+          ${labeledChips("Partially Known", "partial", profile.partially_known)}
+          ${labeledChips("Unknown", "unknown", profile.unknown)}
+        </div>`;
       }
       function renderGaps(gaps) {
         if (!gaps.length) return '<div class="empty">No gaps provided.</div>';
