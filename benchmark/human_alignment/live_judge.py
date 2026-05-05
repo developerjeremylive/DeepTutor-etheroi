@@ -8,6 +8,7 @@ import asyncio
 import json
 from pathlib import Path
 import sys
+import time
 from typing import Any
 
 _THIS_FILE = Path(__file__).resolve()
@@ -250,6 +251,7 @@ async def run_live_judge(
     temperature: float = 0.0,
     max_tokens: int = 1800,
     limit_pairs: int = 0,
+    verbose: bool = True,
 ) -> dict[str, Any]:
     key_by_pair = _load_key(key_path)
     package_by_pair = _load_package(package_path)
@@ -261,23 +263,47 @@ async def run_live_judge(
     if limit_pairs > 0:
         pair_ids = pair_ids[:limit_pairs]
 
+    if verbose:
+        print("Live LLM judge starting")
+        print(f"  model       : {model}")
+        print(f"  binding     : {binding or '(from existing LLM config)'}")
+        print(f"  base_url    : {base_url or '(from existing LLM config)'}")
+        print(f"  annotations : {annotations_path}")
+        print(f"  package     : {package_path}")
+        print(f"  pairs       : {len(pair_ids)}")
+        print(f"  concurrency : {max(1, concurrency)}")
+        print(f"  max_tokens  : {max_tokens}")
+
     semaphore = asyncio.Semaphore(max(1, concurrency))
-    tasks = [
-        _judge_one(
-            pair_id=pair_id,
-            item=package_by_pair[pair_id],
-            key=key_by_pair[pair_id],
-            model=model,
-            binding=binding,
-            base_url=base_url,
-            api_key=api_key,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            semaphore=semaphore,
+    started = time.monotonic()
+    tasks = {}
+    for pair_id in pair_ids:
+        task = asyncio.create_task(
+            _judge_one(
+                pair_id=pair_id,
+                item=package_by_pair[pair_id],
+                key=key_by_pair[pair_id],
+                model=model,
+                binding=binding,
+                base_url=base_url,
+                api_key=api_key,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                semaphore=semaphore,
+            )
         )
-        for pair_id in pair_ids
-    ]
-    items = await asyncio.gather(*tasks)
+        tasks[task] = pair_id
+
+    items = []
+    completed = 0
+    for task in asyncio.as_completed(tasks):
+        item = await task
+        items.append(item)
+        completed += 1
+        if verbose:
+            elapsed = time.monotonic() - started
+            print(f"  [{completed}/{len(pair_ids)}] judged {item['pair_id']} ({elapsed:.1f}s elapsed)")
+    items.sort(key=lambda row: str(row.get("pair_id", "")))
     result = {
         "step": "human_alignment_live_llm_judge",
         "annotations_path": str(annotations_path),
@@ -290,6 +316,10 @@ async def run_live_judge(
         "items": items,
     }
     write_json(output_path, result)
+    if verbose:
+        elapsed = time.monotonic() - started
+        print(f"Live LLM judge done: {len(items)} pairs in {elapsed:.1f}s")
+        print(f"Live judge JSON: {output_path}")
     return result
 
 
@@ -315,6 +345,7 @@ def summarize_with_live_judge(
     temperature: float = 0.0,
     max_tokens: int = 1800,
     limit_pairs: int = 0,
+    verbose: bool = True,
 ) -> dict[str, Any]:
     judge_result = asyncio.run(
         run_live_judge(
@@ -330,9 +361,10 @@ def summarize_with_live_judge(
             temperature=temperature,
             max_tokens=max_tokens,
             limit_pairs=limit_pairs,
+            verbose=verbose,
         )
     )
-    return summarize_annotations(
+    summary = summarize_annotations(
         annotations_path=annotations_path,
         key_path=key_path,
         output_path=summary_output_path,
@@ -345,6 +377,10 @@ def summarize_with_live_judge(
             "num_pairs_judged": judge_result.get("num_pairs_judged", 0),
         },
     )
+    if verbose:
+        print(f"Summary JSON: {summary_output_path}")
+        print(f"Summary MD  : {summary_output_path.with_suffix('.md')}")
+    return summary
 
 
 def main() -> None:
@@ -359,6 +395,7 @@ def main() -> None:
     parser.add_argument("--concurrency", type=int, default=2, help="Concurrent judge calls")
     parser.add_argument("--max-tokens", type=int, default=1800, help="Max tokens per judge response")
     parser.add_argument("--limit-pairs", type=int, default=0, help="Debug: judge only first N annotated pairs")
+    parser.add_argument("--quiet", action="store_true", help="Suppress progress logs")
     parser.add_argument("--judge-output", default="", help="Live judge JSON output")
     parser.add_argument("--summary-output", default="", help="Summary JSON output")
     args = parser.parse_args()
@@ -380,6 +417,7 @@ def main() -> None:
         concurrency=args.concurrency,
         max_tokens=args.max_tokens,
         limit_pairs=args.limit_pairs,
+        verbose=not args.quiet,
     )
     print(f"Live judge: {judge_output_path}")
     print(f"Summary: {summary_output_path}")

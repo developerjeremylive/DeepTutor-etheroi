@@ -212,6 +212,7 @@ def main() -> None:
     parser.add_argument("--judge-max-tokens", type=int, default=1800, help="Max tokens per live judge response")
     parser.add_argument("--judge-output", default="", help="Live judge JSON output")
     parser.add_argument("--limit-pairs", type=int, default=0, help="Debug: live judge only first N annotated pairs")
+    parser.add_argument("--quiet", action="store_true", help="Suppress live judge progress logs")
     parser.add_argument("--tie-threshold", type=float, default=0.25, help="LLM score delta treated as tie")
     parser.add_argument("--output", default="", help="Output SVG path")
     parser.add_argument(
@@ -245,6 +246,7 @@ def main() -> None:
                 concurrency=args.judge_concurrency,
                 max_tokens=args.judge_max_tokens,
                 limit_pairs=args.limit_pairs,
+                verbose=not args.quiet,
             )
         else:
             summary = summarize_annotations(
@@ -258,6 +260,8 @@ def main() -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(build_svg(summary, args.title), encoding="utf-8")
     print(f"Figure: {output_path}")
+    if summary.get("llm_preference_source"):
+        print(f"LLM preference source: {summary['llm_preference_source']}")
 
 
 if __name__ == "__main__":
