@@ -17,10 +17,17 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from benchmark.data_generation.llm_utils import call_llm_json
-from benchmark.human_alignment.common import METRIC_BY_CODE, METRIC_CODES, read_json, write_json
+from benchmark.human_alignment.common import (
+    METRIC_BY_CODE,
+    METRIC_CODES,
+    normalize_preference,
+    read_json,
+    write_json,
+)
 from benchmark.human_alignment.summarize_annotations import summarize_annotations
 
 DEFAULT_JUDGE_MODEL = "anthropic/claude-sonnet-4.6"
+DEFAULT_JUDGE_CONCURRENCY = 8
 SYSTEM_PROMPT = """You are an expert blind evaluator for TutorBench.
 
 You compare System A and System B for the same student profile, task, source excerpts,
@@ -56,20 +63,23 @@ def _load_annotated_pair_ids(path: Path) -> list[str]:
     import csv
 
     ids: set[str] = set()
+    def has_human_label(row: dict[str, Any]) -> bool:
+        return any(normalize_preference(row.get(code)) is not None for code in METRIC_CODES)
+
     if path.suffix.lower() == ".jsonl":
         with open(path, encoding="utf-8") as f:
             for line in f:
                 if line.strip():
                     row = json.loads(line)
                     pair_id = str(row.get("pair_id", "")).strip()
-                    if pair_id:
+                    if pair_id and has_human_label(row):
                         ids.add(pair_id)
         return sorted(ids)
 
     with open(path, encoding="utf-8", newline="") as f:
         for row in csv.DictReader(f):
             pair_id = str(row.get("pair_id", "")).strip()
-            if pair_id:
+            if pair_id and has_human_label(row):
                 ids.add(pair_id)
     return sorted(ids)
 
@@ -247,7 +257,7 @@ async def run_live_judge(
     binding: str | None = None,
     base_url: str | None = None,
     api_key: str | None = None,
-    concurrency: int = 2,
+    concurrency: int = DEFAULT_JUDGE_CONCURRENCY,
     temperature: float = 0.0,
     max_tokens: int = 1800,
     limit_pairs: int = 0,
@@ -341,7 +351,7 @@ def summarize_with_live_judge(
     binding: str | None = None,
     base_url: str | None = None,
     api_key: str | None = None,
-    concurrency: int = 2,
+    concurrency: int = DEFAULT_JUDGE_CONCURRENCY,
     temperature: float = 0.0,
     max_tokens: int = 1800,
     limit_pairs: int = 0,
@@ -392,7 +402,7 @@ def main() -> None:
     parser.add_argument("--binding", default="", help="Override LLM provider binding; default uses existing LLM config")
     parser.add_argument("--base-url", default="", help="Override judge API base URL; default uses existing LLM config")
     parser.add_argument("--api-key", default=None, help="Judge API key (default: provider env var)")
-    parser.add_argument("--concurrency", type=int, default=2, help="Concurrent judge calls")
+    parser.add_argument("--concurrency", type=int, default=DEFAULT_JUDGE_CONCURRENCY, help="Concurrent judge calls")
     parser.add_argument("--max-tokens", type=int, default=1800, help="Max tokens per judge response")
     parser.add_argument("--limit-pairs", type=int, default=0, help="Debug: judge only first N annotated pairs")
     parser.add_argument("--quiet", action="store_true", help="Suppress progress logs")

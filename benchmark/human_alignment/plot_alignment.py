@@ -16,6 +16,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from benchmark.human_alignment.common import METRIC_CODES, read_json
 from benchmark.human_alignment.live_judge import (
+    DEFAULT_JUDGE_CONCURRENCY,
     DEFAULT_JUDGE_MODEL,
     summarize_with_live_judge,
 )
@@ -208,7 +209,7 @@ def main() -> None:
     parser.add_argument("--judge-binding", default="", help="Override live judge provider binding; default uses existing LLM config")
     parser.add_argument("--judge-base-url", default="", help="Override live judge API base URL; default uses existing LLM config")
     parser.add_argument("--judge-api-key", default=None, help="Override live judge API key; default uses existing LLM config/env")
-    parser.add_argument("--judge-concurrency", type=int, default=2, help="Concurrent live judge calls")
+    parser.add_argument("--judge-concurrency", type=int, default=DEFAULT_JUDGE_CONCURRENCY, help="Concurrent live judge calls")
     parser.add_argument("--judge-max-tokens", type=int, default=1800, help="Max tokens per live judge response")
     parser.add_argument("--judge-output", default="", help="Live judge JSON output")
     parser.add_argument("--limit-pairs", type=int, default=0, help="Debug: live judge only first N annotated pairs")

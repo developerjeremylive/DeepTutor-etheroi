@@ -219,7 +219,7 @@ python3 -m benchmark.human_alignment.plot_alignment \
 ```text
 --llm-source live
 --judge-model anthropic/claude-sonnet-4.6
---judge-concurrency 2
+--judge-concurrency 8
 ```
 
 API key、base URL 和 provider binding 默认走项目现有 LLM 基建配置，例如 OpenRouter：
@@ -240,9 +240,11 @@ python3 -m benchmark.human_alignment.plot_alignment \
   --key benchmark/data/bench_pipeline/human_alignment_pairwise/annotation_key.json \
   --package benchmark/data/bench_pipeline/human_alignment_pairwise/annotation_package.jsonl \
   --judge-model anthropic/claude-sonnet-4.6 \
-  --judge-concurrency 1 \
+  --judge-concurrency 8 \
   --output benchmark/data/bench_pipeline/human_alignment_pairwise/human_alignment_preference_alignment.svg
 ```
+
+现场 LLM judge 只会评 `completed_annotations_all.csv` 中已经有人类标注的 pair。空白 template 行不会触发 LLM 调用。
 
 会额外输出：
 
